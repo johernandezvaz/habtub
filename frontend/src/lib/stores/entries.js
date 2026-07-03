@@ -2,14 +2,29 @@ import { writable } from 'svelte/store';
 import { supabase } from '$lib/supabase.js';
 
 const _entries = writable(/** @type {Entry[]} */([]));
+const _notes = writable(/** @type {Note[]}  */([]));
+
+/** @typedef {{ id: string, entry_id: string|null, content: string, created_at: string, entries?: { category: string } }} Note */
 const _loading = writable(false);
 const _error = writable(/** @type {string | null} */(null));
 
 /** @typedef {{ id: string, category: 'exercise'|'music'|'content', duration_minutes: number, occurred_at: string, created_at?: string }} Entry */
 
 export const entries = { subscribe: _entries.subscribe };
+export const notes = { subscribe: _notes.subscribe };
 export const entriesLoading = { subscribe: _loading.subscribe };
 export const entriesError = { subscribe: _error.subscribe };
+
+
+export async function fetchNotes() {
+  const { data, error } = await supabase
+    .from('notes')
+    .select('id, entry_id, content, created_at, entries(category)')
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (!error && data) _notes.set(data);
+}
 
 /**
  * Carga todas las entradas dentro de un rango de fechas.

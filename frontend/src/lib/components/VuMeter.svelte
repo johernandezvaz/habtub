@@ -53,8 +53,9 @@
             ? 'animate-seg-fill'
             : ''}"
           style="
-            background: {lit ? COLORS[cat] : '#1A1D21'};
-            transform: scaleX({lit ? 1 : 0});
+            background: {lit ? COLORS[cat] : '#2A2F37'};
+            border: {lit ? 'none' : '1px solid #363B44'};
+            transform: scaleX({lit ? 1 : 0.92});
             transition: background 0.2s;
             animation-delay: {lit ? i * 30 : 0}ms;
           "

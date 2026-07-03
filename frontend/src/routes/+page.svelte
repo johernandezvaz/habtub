@@ -6,6 +6,7 @@
     entriesError,
     fetchRange,
     insertEntry,
+    fetchNotes,
   } from "$lib/stores/entries.js";
   import { signOut, session } from "$lib/stores/auth.js";
   import {
@@ -20,6 +21,10 @@
   import VuMeter from "$lib/components/VuMeter.svelte";
   import Heatmap from "$lib/components/Heatmap.svelte";
   import StatsPanel from "$lib/components/StatsPanel.svelte";
+  import NotesWidget from "$lib/components/NotesWidget.svelte";
+  import CategoryStreaks from "$lib/components/CategoryStreaks.svelte";
+  import WeekComparison from "$lib/components/WeekComparison.svelte";
+  import HourlyDistribution from "$lib/components/HourlyDistribution.svelte";
 
   let activeTab = $state("hoy");
 
@@ -30,7 +35,6 @@
   let logError = $state("");
   let logLoading = $state(false);
 
-  // Extracted so sidebar and tab-bar share the same definition
   const TABS = [
     { id: "hoy", label: "Hoy", icon: "clock" },
     { id: "historial", label: "Historial", icon: "calendar" },
@@ -68,7 +72,7 @@
     const to = new Date();
     const from = new Date();
     from.setDate(from.getDate() - 366);
-    await fetchRange(from, to);
+    await Promise.all([fetchRange(from, to), fetchNotes()]);
   });
 
   function openSheet(cat: Cat) {
@@ -104,7 +108,7 @@
   };
 </script>
 
-<div class="bg-bg dt:max-w-[1040px] dt:mx-auto dt:min-h-screen dt:flex">
+<div class="bg-bg dt:min-h-screen dt:flex">
   <aside
     class="hidden dt:flex dt:flex-col dt:w-[220px] dt:shrink-0
            dt:border-r dt:border-border dt:sticky dt:top-0 dt:h-screen
@@ -221,9 +225,8 @@
           class="flex items-baseline gap-1.5 border border-border rounded px-2.5 py-1.5"
         >
           <span
-            class="font-mono text-base font-bold
-                   bg-gradient-to-r from-music via-exercise to-content
-                   bg-clip-text text-transparent">{streak}</span
+            class="font-mono text-base font-bold bg-gradient-to-r from-music via-exercise to-content bg-clip-text text-transparent"
+            >{streak}</span
           >
           <span class="text-[9px] text-muted uppercase tracking-[0.06em]"
             >días</span
@@ -262,31 +265,20 @@
       {#if activeTab === "hoy"}
         <div
           class="h-full overflow-y-auto px-4 pt-4 pb-24 animate-screen-in
-                 dt:h-auto dt:overflow-visible dt:px-8 dt:pt-7 dt:pb-10
-                 dt:grid dt:grid-cols-[1.1fr_0.9fr] dt:gap-4 dt:items-start"
+                 dt:h-auto dt:overflow-visible dt:px-6 dt:pt-6 dt:pb-10
+                 dt:grid dt:gap-4 dt:items-start
+                 [--cols:repeat(auto-fit,minmax(320px,1fr))]
+                 dt:[grid-template-columns:var(--cols)]"
         >
-          <div
-            class="border border-border rounded bg-panel p-4 mb-3 dt:mb-0 dt:order-2"
-          >
-            <div class="flex justify-between items-center mb-3">
-              <span class="font-mono text-[9.5px] tracking-[0.12em] text-muted"
-                >CANAL · ESTA SEMANA</span
-              >
-            </div>
-            <VuMeter entries={$entries} />
-          </div>
-
-          <div
-            class="border border-border rounded bg-panel p-4 mb-3 dt:mb-0 dt:order-1"
-          >
+          <div class="border border-border rounded bg-panel p-4 mb-3 dt:mb-0">
             <span
               class="font-mono text-[9.5px] tracking-[0.12em] text-muted block mb-3"
-              >REGISTRAR AHORA</span
             >
-
+              REGISTRAR AHORA
+            </span>
             {#if $entriesLoading}
               <div
-                class="flex gap-2 items-center justify-center py-6 text-muted text-xs font-mono"
+                class="flex items-center justify-center py-6 text-muted text-xs font-mono"
               >
                 <span class="animate-pulse">Cargando…</span>
               </div>
@@ -320,8 +312,9 @@
                       <span
                         class="block text-sm font-semibold"
                         style={todayEntry ? `color:${color}` : "color:#8A8F96"}
-                        >{label}</span
                       >
+                        {label}
+                      </span>
                       <span
                         class="block text-[11px] font-mono text-muted mt-0.5"
                       >
@@ -336,18 +329,38 @@
               </div>
             {/if}
           </div>
+
+          <div class="border border-border rounded bg-panel p-4 mb-3 dt:mb-0">
+            <div class="flex justify-between items-center mb-3">
+              <span class="font-mono text-[9.5px] tracking-[0.12em] text-muted">
+                CANAL · ESTA SEMANA
+              </span>
+            </div>
+            <VuMeter entries={$entries} />
+          </div>
+
+          <div class="mb-3 dt:mb-0">
+            <WeekComparison entries={$entries} />
+          </div>
+
+          <div class="mb-3 dt:mb-0">
+            <CategoryStreaks entries={$entries} />
+          </div>
         </div>
       {:else if activeTab === "historial"}
         <div
           class="h-full overflow-y-auto px-4 pt-4 pb-24 animate-screen-in
-                 dt:h-auto dt:overflow-visible dt:px-8 dt:pt-7 dt:pb-10
-                 dt:grid dt:grid-cols-[1.3fr_1fr] dt:gap-4 dt:items-start"
+                 dt:h-auto dt:overflow-visible dt:px-6 dt:pt-6 dt:pb-10
+                 dt:grid dt:gap-4 dt:items-start
+                 [--cols:repeat(auto-fit,minmax(320px,1fr))]
+                 dt:[grid-template-columns:var(--cols)]"
         >
           <div class="border border-border rounded bg-panel p-4 mb-3 dt:mb-0">
             <span
               class="font-mono text-[9.5px] tracking-[0.12em] text-muted block mb-3"
-              >ÚLTIMAS 12 SEMANAS</span
             >
+              ÚLTIMAS 12 SEMANAS
+            </span>
             {#if $entriesLoading}
               <div
                 class="text-muted text-xs font-mono animate-pulse py-4 text-center"
@@ -359,11 +372,12 @@
             {/if}
           </div>
 
-          <div class="border border-border rounded bg-panel p-4">
+          <div class="border border-border rounded bg-panel p-4 mb-3 dt:mb-0">
             <span
               class="font-mono text-[9.5px] tracking-[0.12em] text-muted block mb-3"
-              >HOY</span
             >
+              HOY
+            </span>
             {#if $entriesLoading}
               <div
                 class="text-muted text-xs font-mono animate-pulse text-center py-4"
@@ -378,11 +392,19 @@
               <EntryList entries={todayEntries} />
             {/if}
           </div>
+
+          <div class="mb-3 dt:mb-0">
+            <HourlyDistribution entries={$entries} />
+          </div>
+
+          <div class="mb-3 dt:mb-0">
+            <NotesWidget />
+          </div>
         </div>
       {:else if activeTab === "stats"}
         <div
           class="h-full overflow-y-auto px-4 pt-4 pb-24 animate-screen-in
-                 dt:h-auto dt:overflow-visible dt:px-8 dt:pt-7 dt:pb-10"
+                 dt:h-auto dt:overflow-visible dt:px-6 dt:pt-6 dt:pb-10"
         >
           {#if $entriesLoading}
             <div
@@ -396,6 +418,7 @@
         </div>
       {/if}
     </div>
+
     <div
       class="dt:hidden flex border-t border-border bg-panel/80 backdrop-blur-sm flex-shrink-0"
     >
@@ -470,9 +493,9 @@
                px-[18px] pt-5 pb-7"
       >
         <p class="text-[13px] font-mono text-muted2 mb-3.5">
-          Duración — <strong class="text-text"
-            >{sheetCat ? CATS[sheetCat].label : ""}</strong
-          >
+          Duración — <strong class="text-text">
+            {sheetCat ? CATS[sheetCat].label : ""}
+          </strong>
         </p>
 
         <div class="grid grid-cols-3 gap-2 mb-2">
@@ -485,8 +508,7 @@
                 border border-white/8 rounded bg-white/[0.04] text-muted2
                 py-3.5 font-mono text-[13px] cursor-pointer
                 hover:bg-white/[0.09] active:scale-95
-                disabled:opacity-40
-                transition-all duration-100
+                disabled:opacity-40 transition-all duration-100
               "
             >
               {mins} min
@@ -499,7 +521,6 @@
             {logError}
           </p>
         {/if}
-
         {#if logLoading}
           <p
             class="text-muted text-xs font-mono text-center mt-2 animate-pulse"
