@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Habtub — Prototipo</title>
+<style>
+  :root {
+    --bg: #0B0D10;
+    --panel: #111418;
+    --border: #1F2226;
+    --text: #EDEAE4;
+    --muted: #5A5F66;
+    --muted-2: #8A8F96;
+    --exercise: #3FE1D0;
+    --music: #FF3EA5;
+    --content: #F5A623;
+    --radius: 5px;
+    --mono: 'SF Mono', ui-monospace, 'Courier New', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    height: 100%;
+    overflow: hidden;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+  #app {
+    max-width: 420px;
+    margin: 0 auto;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    position: relative;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+
+  /* ---- top bar ---- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 18px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .topbar .brand {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+  }
+  .topbar .brand strong {
+    display: block;
+    font-family: var(--sans);
+    font-size: 17px;
+    letter-spacing: -0.01em;
+    color: var(--text);
+    font-weight: 700;
+    margin-top: 3px;
+  }
+  .streak-chip {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+  }
+  .streak-chip .n {
+    font-family: var(--mono);
+    font-size: 16px;
+    font-weight: 700;
+    background: linear-gradient(90deg, var(--music), var(--exercise), var(--content));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .streak-chip .l { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* ---- screens ---- */
+  .screen {
+    flex: 1;
+    overflow-y: auto;
+    display: none;
+    padding: 16px 16px 90px;
+  }
+  .screen.active {
+    display: block;
+    animation: screenIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes screenIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .panel-label {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ---- VU meter (signature element) ---- */
+  .vu {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    height: 64px;
+    margin-bottom: 4px;
+  }
+  .vu-channel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    gap: 2px;
+    height: 100%;
+  }
+  .vu-seg {
+    height: 6px;
+    border-radius: 2px;
+    background: #1A1D21;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: background 0.2s;
+  }
+  .vu-seg.lit {
+    animation: segFill 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes segFill {
+    to { transform: scaleX(1); }
+  }
+  .vu-footer {
+    display: flex;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .vu-footer span {
+    flex: 1;
+    text-align: center;
+    font-size: 9.5px;
+    font-family: var(--mono);
+    color: var(--muted-2);
+  }
+
+  /* ---- capture buttons (hoy) ---- */
+  .cat-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .cat-btn {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--panel);
+    padding: 16px 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+  }
+  .cat-btn .led {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #2A2E33;
+    flex-shrink: 0;
+  }
+  .cat-btn .info { flex: 1; }
+  .cat-btn .name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted-2);
+  }
+  .cat-btn .sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-top: 2px;
+  }
+  .cat-btn .chevron { color: var(--muted); font-size: 14px; }
+
+  .cat-btn.on-exercise { border-color: var(--exercise); background: color-mix(in srgb, var(--exercise) 8%, var(--panel)); }
+  .cat-btn.on-exercise .led { background: var(--exercise); box-shadow: 0 0 8px var(--exercise); }
+  .cat-btn.on-exercise .name { color: var(--exercise); }
+
+  .cat-btn.on-music { border-color: var(--music); background: color-mix(in srgb, var(--music) 8%, var(--panel)); }
+  .cat-btn.on-music .led { background: var(--music); box-shadow: 0 0 8px var(--music); }
+  .cat-btn.on-music .name { color: var(--music); }
+
+  .cat-btn.on-content { border-color: var(--content); background: color-mix(in srgb, var(--content) 8%, var(--panel)); }
+  .cat-btn.on-content .led { background: var(--content); box-shadow: 0 0 8px var(--content); }
+  .cat-btn.on-content .name { color: var(--content); }
+
+  .cat-btn.just-logged { animation: confirmPulse 0.45s cubic-bezier(0.16, 1, 0.3, 1); }
+  @keyframes confirmPulse {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.015); }
+    100% { transform: scale(1); }
+  }
+
+  /* ---- duration sheet ---- */
+  .sheet-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0);
+    display: none;
+    align-items: flex-end;
+    z-index: 10;
+    transition: background 0.25s ease;
+  }
+  .sheet-backdrop.active {
+    display: flex;
+    background: rgba(0,0,0,0.45);
+  }
+  .sheet {
+    width: 100%;
+    background: rgba(24, 27, 32, 0.6);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    border-radius: 18px 18px 0 0;
+    padding: 20px 18px 28px;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .sheet-backdrop.active .sheet {
+    transform: translateY(0);
+  }
+  .sheet-title {
+    font-size: 13px;
+    color: var(--muted-2);
+    font-family: var(--mono);
+    margin-bottom: 14px;
+  }
+  .sheet-title strong { color: var(--text); }
+  .duration-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .dur-opt {
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: var(--radius);
+    background: rgba(255,255,255,0.04);
+    color: var(--muted-2);
+    padding: 14px 0;
+    font-family: var(--mono);
+    font-size: 13px;
+    cursor: pointer;
+    transition: transform 0.12s ease, background 0.12s ease;
+  }
+  .dur-opt:active { transform: scale(0.95); background: rgba(255,255,255,0.09); }
+  .dur-opt.custom { grid-column: span 3; color: var(--muted); }
+
+  /* ---- historial ---- */
+  .heat-wrap { display: flex; gap: 4px; overflow-x: auto; }
+  .day-labels { display: flex; flex-direction: column; gap: 3px; margin-right: 2px; }
+  .day-labels span { width: 12px; height: 12px; font-size: 8px; color: var(--muted); display: flex; align-items: center; }
+  .heat-col { display: flex; flex-direction: column; gap: 3px; }
+  .heat-cell { width: 12px; height: 12px; border-radius: 3px; background: #1A1D21; cursor: pointer; }
+
+  .entry-list { display: flex; flex-direction: column; gap: 8px; }
+  .entry-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .entry-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .entry-main { flex: 1; }
+  .entry-cat { font-size: 13px; font-weight: 600; }
+  .entry-time { font-size: 10.5px; color: var(--muted); font-family: var(--mono); }
+  .entry-dur { font-size: 12px; color: var(--muted-2); font-family: var(--mono); }
+
+  /* ---- stats ---- */
+  .seg-switch {
+    display: flex;
+    gap: 4px;
+    background: var(--bg);
+    padding: 3px;
+    border-radius: var(--radius);
+    margin-bottom: 14px;
+  }
+  .seg-btn {
+    flex: 1;
+    padding: 8px 0;
+    border-radius: 3px;
+    border: none;
+    background: transparent;
+    color: var(--muted-2);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--sans);
+  }
+  .seg-btn.active { background: var(--text); color: var(--bg); }
+
+  .range-nav {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .range-nav button { background: none; border: none; color: var(--muted-2); font-size: 16px; cursor: pointer; }
+  .range-label { font-family: var(--mono); font-size: 12px; min-width: 130px; text-align: center; }
+
+  .stat-block { margin-bottom: 14px; }
+  .stat-top { display: flex; justify-content: space-between; font-size: 12.5px; margin-bottom: 6px; }
+  .stat-top .cat { font-weight: 600; }
+  .stat-top .nums { color: var(--muted-2); font-family: var(--mono); font-size: 11px; }
+  .bar-track { height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+
+  .total-time {
+    text-align: center;
+    padding: 8px 0 14px;
+  }
+  .total-time .n {
+    font-family: var(--mono);
+    font-size: 30px;
+    font-weight: 800;
+    display: block;
+  }
+  .total-time .l { font-size: 9.5px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+
+  /* ---- tab bar ---- */
+  .tabbar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    border-top: 1px solid var(--border);
+    background: rgba(11,13,16,0.92);
+    backdrop-filter: blur(8px);
+  }
+  .tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    padding: 12px 0 16px;
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-family: var(--sans);
+    font-size: 10.5px;
+  }
+  .tab.active { color: var(--text); }
+  .tab svg { width: 20px; height: 20px; }
+  .tab.active svg { stroke: var(--text); }
+
+  /* ================= DESKTOP ================= */
+  .sidebar { display: none; }
+
+  @media (min-width: 900px) {
+    html, body { overflow: auto; }
+
+    #app {
+      max-width: 1040px;
+      height: auto;
+      min-height: 100vh;
+      flex-direction: row;
+      border-left: none;
+      border-right: none;
+    }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      width: 220px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      padding: 22px 14px;
+      gap: 4px;
+    }
+    .sidebar .brand-full {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      color: var(--muted);
+      padding: 0 10px 20px;
+    }
+    .sidebar .brand-full strong {
+      display: block;
+      font-family: var(--sans);
+      font-size: 18px;
+      color: var(--text);
+      font-weight: 700;
+      margin-top: 4px;
+      letter-spacing: -0.01em;
+    }
+    .side-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 11px 12px;
+      border-radius: var(--radius);
+      background: none;
+      border: none;
+      color: var(--muted-2);
+      cursor: pointer;
+      font-family: var(--sans);
+      font-size: 13.5px;
+      text-align: left;
+    }
+    .side-link svg { width: 18px; height: 18px; flex-shrink: 0; }
+    .side-link.active { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+    .side-link:not(.active):hover { color: var(--text); }
+    .sidebar .side-streak {
+      margin-top: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+    }
+    .sidebar .side-streak .n {
+      font-family: var(--mono);
+      font-size: 22px;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--music), var(--exercise), var(--content));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: block;
+    }
+    .sidebar .side-streak .l { font-size: 9.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .main-col { flex: 1; min-width: 0; }
+    .topbar { display: none; }
+    .tabbar { display: none; }
+    .screen { padding: 28px 32px 40px; overflow-y: visible; }
+
+    /* Hoy: capture + VU side by side */
+    #screen-hoy { display: none; }
+    #screen-hoy.active { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; align-items: start; }
+    #screen-hoy .panel:first-child { order: 2; }
+    #screen-hoy .panel:last-child { order: 1; }
+
+    /* Historial: heatmap + list side by side */
+    #screen-historial { display: none; }
+    #screen-historial.active { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
+
+    /* Stats: switch/nav column + bars column */
+    #screen-stats .panel { display: grid; grid-template-columns: 260px 1fr; gap: 32px; }
+    #screen-stats .seg-switch, #screen-stats .range-nav, #screen-stats .total-time { grid-column: 1; }
+    #screen-stats #statBlocks { grid-column: 2; grid-row: 1 / span 3; align-self: center; }
+
+    .cat-btn { padding: 20px 16px; }
+    .heat-cell { width: 14px; height: 14px; }
+    .day-labels span { width: 14px; height: 14px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <nav class="sidebar">
+    <div class="brand-full">HABTUB<strong>Bitácora</strong></div>
+    <button class="side-link active" data-tab="hoy" onclick="switchTab('hoy')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      Hoy
+    </button>
+    <button class="side-link" data-tab="historial" onclick="switchTab('historial')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+      Historial
+    </button>
+    <button class="side-link" data-tab="stats" onclick="switchTab('stats')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>
+      Stats
+    </button>
+    <div class="side-streak">
+      <span class="n" id="streakNumDesktop">12</span>
+      <span class="l">días seguidos</span>
+    </div>
+  </nav>
+
+  <div class="main-col">
+
+  <div class="topbar">
+    <div class="brand">HABTUB <strong id="dateLabel"></strong></div>
+    <div class="streak-chip">
+      <span class="n" id="streakNum">12</span>
+      <span class="l">días</span>
+    </div>
+  </div>
+
+  <!-- ===== HOY ===== -->
+  <div class="screen active" id="screen-hoy">
+    <div class="panel">
+      <div class="panel-label"><span>CANAL · ESTA SEMANA</span></div>
+      <div class="vu" id="vuMeter"></div>
+      <div class="vu-footer">
+        <span>EJERCICIO</span><span>MÚSICA</span><span>CONTENIDO</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-label"><span>REGISTRAR AHORA</span></div>
+      <div class="cat-row">
+        <button class="cat-btn" data-cat="exercise" onclick="openSheet('exercise')">
+          <span class="led"></span>
+          <span class="info">
+            <span class="name">Ejercicio</span>
+            <span class="sub" id="sub-exercise">sin registrar hoy</span>
+          </span>
+          <span class="chevron">›</span>
+        </button>
+        <button class="cat-btn" data-cat="music" onclick="openSheet('music')">
+          <span class="led"></span>
+          <span class="info">
+            <span class="name">Música</span>
+            <span class="sub" id="sub-music">sin registrar hoy</span>
+          </span>
+          <span class="chevron">›</span>
+        </button>
+        <button class="cat-btn" data-cat="content" onclick="openSheet('content')">
+          <span class="led"></span>
+          <span class="info">
+            <span class="name">Contenido</span>
+            <span class="sub" id="sub-content">sin registrar hoy</span>
+          </span>
+          <span class="chevron">›</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== HISTORIAL ===== -->
+  <div class="screen" id="screen-historial">
+    <div class="panel">
+      <div class="panel-label"><span>ÚLTIMAS 12 SEMANAS</span></div>
+      <div class="heat-wrap" id="heatmap"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-label"><span>HOY</span></div>
+      <div class="entry-list" id="entryList"></div>
+    </div>
+  </div>
+
+  <!-- ===== STATS ===== -->
+  <div class="screen" id="screen-stats">
+    <div class="panel">
+      <div class="seg-switch">
+        <button class="seg-btn active" onclick="setRange('week')">Semana</button>
+        <button class="seg-btn" onclick="setRange('month')">Mes</button>
+        <button class="seg-btn" onclick="setRange('year')">Año</button>
+      </div>
+      <div class="range-nav">
+        <button onclick="shiftRange(-1)">‹</button>
+        <span class="range-label" id="rangeLabel">29 jun — 5 jul</span>
+        <button onclick="shiftRange(1)">›</button>
+      </div>
+      <div class="total-time">
+        <span class="n" id="totalTime">8h 15m</span>
+        <span class="l">tiempo total invertido</span>
+      </div>
+      <div id="statBlocks"></div>
+    </div>
+  </div>
+
+  <!-- ===== duration sheet ===== -->
+  <div class="sheet-backdrop" id="sheetBackdrop" onclick="if(event.target===this) closeSheet()">
+    <div class="sheet">
+      <div class="sheet-title">Duración — <strong id="sheetCatName">Ejercicio</strong></div>
+      <div class="duration-grid">
+        <button class="dur-opt" onclick="logEntry(15)">15 min</button>
+        <button class="dur-opt" onclick="logEntry(30)">30 min</button>
+        <button class="dur-opt" onclick="logEntry(45)">45 min</button>
+        <button class="dur-opt" onclick="logEntry(60)">60 min</button>
+        <button class="dur-opt" onclick="logEntry(90)">90 min</button>
+        <button class="dur-opt" onclick="logEntry(120)">120 min</button>
+        <button class="dur-opt custom" onclick="logEntry(73)">Personalizar…</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== tab bar (mobile) ===== -->
+  <div class="tabbar">
+    <button class="tab active" data-tab="hoy" onclick="switchTab('hoy')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+      Hoy
+    </button>
+    <button class="tab" data-tab="historial" onclick="switchTab('historial')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>
+      Historial
+    </button>
+    <button class="tab" data-tab="stats" onclick="switchTab('stats')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M12 20V4M20 20v-7"/></svg>
+      Stats
+    </button>
+  </div>
+
+  </div><!-- /.main-col -->
+</div>
+
+<script>
+const CATS = {
+  exercise: { label: 'Ejercicio', color: '#3FE1D0' },
+  music: { label: 'Música', color: '#FF3EA5' },
+  content: { label: 'Contenido', color: '#F5A623' },
+};
+
+// ---- mock data generation (seeded, deterministic-ish) ----
+function seededRand(seed) {
+  let x = Math.sin(seed) * 10000;
+  return x - Math.floor(x);
+}
+let mockEntries = []; // {cat, date: 'YYYY-MM-DD', duration}
+(function seed() {
+  const today = new Date();
+  for (let i = 0; i < 84; i++) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0,10);
+    Object.keys(CATS).forEach((cat, ci) => {
+      const r = seededRand(i * 13 + ci * 7 + 1);
+      if (r > 0.42) {
+        const durOpts = [15,30,45,60,90];
+        const dur = durOpts[Math.floor(seededRand(i+ci) * durOpts.length)];
+        mockEntries.push({ cat, date: key, duration: dur });
+      }
+    });
+  }
+})();
+
+function todayKey() { return new Date().toISOString().slice(0,10); }
+
+// remove today's mock entries so the "Hoy" screen starts empty for the demo
+mockEntries = mockEntries.filter(e => e.date !== todayKey());
+
+document.getElementById('dateLabel').textContent =
+  new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'short' }).toUpperCase();
+
+// ---- tabs ----
+function switchTab(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.side-link').forEach(t => t.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.querySelector(`.tab[data-tab="${name}"]`).classList.add('active');
+  document.querySelector(`.side-link[data-tab="${name}"]`).classList.add('active');
+  if (name === 'historial') renderHistorial();
+  if (name === 'stats') renderStats();
+}
+
+// ---- capture sheet ----
+let pendingCat = null;
+function openSheet(cat) {
+  pendingCat = cat;
+  document.getElementById('sheetCatName').textContent = CATS[cat].label;
+  document.getElementById('sheetBackdrop').classList.add('active');
+}
+function closeSheet() {
+  document.getElementById('sheetBackdrop').classList.remove('active');
+}
+function logEntry(duration) {
+  const cat = pendingCat;
+  mockEntries.push({ cat, date: todayKey(), duration });
+  closeSheet();
+  renderHoy();
+  const btn = document.querySelector(`.cat-btn[data-cat="${cat}"]`);
+  btn.classList.remove('just-logged');
+  void btn.offsetWidth; // restart animation
+  btn.classList.add('just-logged');
+}
+
+function renderHoy() {
+  const todaysEntries = mockEntries.filter(e => e.date === todayKey());
+  Object.keys(CATS).forEach(cat => {
+    const btn = document.querySelector(`.cat-btn[data-cat="${cat}"]`);
+    const entry = todaysEntries.find(e => e.cat === cat);
+    btn.classList.toggle('on-' + cat, !!entry);
+    document.getElementById('sub-' + cat).textContent = entry
+      ? `registrado · ${entry.duration} min`
+      : 'sin registrar hoy';
+  });
+  renderVU();
+}
+
+function renderVU() {
+  const vu = document.getElementById('vuMeter');
+  vu.innerHTML = '';
+  const start = new Date();
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  Object.entries(CATS).forEach(([cat, meta]) => {
+    let count = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      const key = d.toISOString().slice(0,10);
+      if (mockEntries.some(e => e.cat === cat && e.date === key)) count++;
+    }
+    const col = document.createElement('div');
+    col.className = 'vu-channel';
+    for (let s = 0; s < 7; s++) {
+      const seg = document.createElement('div');
+      seg.className = 'vu-seg';
+      if (s < count) {
+        seg.style.background = meta.color;
+        seg.style.animationDelay = (s * 0.05) + 's';
+        seg.classList.add('lit');
+      } else {
+        seg.style.transform = 'scaleX(1)';
+      }
+      col.appendChild(seg);
+    }
+    vu.appendChild(col);
+  });
+}
+
+// ---- historial ----
+function intensityColor(dateKey) {
+  const es = mockEntries.filter(e => e.date === dateKey);
+  if (es.length === 0) return '#1A1D21';
+  if (es.length === 1) return CATS[es[0].cat].color + '55';
+  if (es.length === 2) return CATS[es[0].cat].color + 'AA';
+  return '#F5A623';
+}
+function renderHistorial() {
+  const heat = document.getElementById('heatmap');
+  heat.innerHTML = '';
+  const labelsCol = document.createElement('div');
+  labelsCol.className = 'day-labels';
+  ['L','M','X','J','V','S','D'].forEach(l => {
+    const s = document.createElement('span'); s.textContent = l; labelsCol.appendChild(s);
+  });
+  heat.appendChild(labelsCol);
+
+  const today = new Date();
+  const start = new Date(today);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+
+  const weeks = [];
+  let cur = new Date(start);
+  for (let w = 0; w < 12; w++) {
+    weeks.unshift(new Date(cur));
+    cur.setDate(cur.getDate() - 7);
+  }
+
+  weeks.forEach(weekStart => {
+    const col = document.createElement('div');
+    col.className = 'heat-col';
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      const key = d.toISOString().slice(0,10);
+      const cell = document.createElement('div');
+      cell.className = 'heat-cell';
+      if (d <= today) cell.style.background = intensityColor(key);
+      else cell.style.background = 'transparent';
+      col.appendChild(cell);
+    }
+    heat.appendChild(col);
+  });
+
+  const list = document.getElementById('entryList');
+  const todays = mockEntries.filter(e => e.date === todayKey());
+  list.innerHTML = todays.length ? '' : '<div style="color:var(--muted);font-size:12.5px;">Sin registros hoy todavía.</div>';
+  todays.forEach(e => {
+    const row = document.createElement('div');
+    row.className = 'entry-row';
+    row.innerHTML = `
+      <span class="entry-dot" style="background:${CATS[e.cat].color}"></span>
+      <span class="entry-main">
+        <div class="entry-cat" style="color:${CATS[e.cat].color}">${CATS[e.cat].label}</div>
+      </span>
+      <span class="entry-dur">${e.duration} min</span>
+    `;
+    list.appendChild(row);
+  });
+}
+
+// ---- stats ----
+let currentRange = 'week';
+let rangeOffset = 0;
+
+function setRange(r) {
+  currentRange = r;
+  rangeOffset = 0;
+  document.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderStats();
+}
+function shiftRange(dir) {
+  rangeOffset += dir;
+  renderStats();
+}
+
+function getRangeDates() {
+  const today = new Date();
+  if (currentRange === 'week') {
+    const start = new Date(today);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7) + rangeOffset * 7);
+    return Array.from({length:7}, (_,i) => { const d = new Date(start); d.setDate(d.getDate()+i); return d; });
+  }
+  if (currentRange === 'month') {
+    const m = today.getMonth() + rangeOffset;
+    const y = today.getFullYear();
+    const base = new Date(y, m, 1);
+    const days = new Date(base.getFullYear(), base.getMonth()+1, 0).getDate();
+    return Array.from({length:days}, (_,i) => new Date(base.getFullYear(), base.getMonth(), i+1));
+  }
+  // year
+  const y = today.getFullYear() + rangeOffset;
+  let all = [];
+  for (let m = 0; m < 12; m++) {
+    const days = new Date(y, m+1, 0).getDate();
+    for (let d = 1; d <= days; d++) all.push(new Date(y, m, d));
+  }
+  return all;
+}
+
+function rangeLabelText() {
+  const dates = getRangeDates();
+  if (currentRange === 'week') {
+    const s = dates[0], e = dates[6];
+    const fmt = (d) => d.toLocaleDateString('es-MX', {day:'numeric', month:'short'});
+    return `${fmt(s)} — ${fmt(e)}`;
+  }
+  if (currentRange === 'month') {
+    return dates[0].toLocaleDateString('es-MX', {month:'long', year:'numeric'});
+  }
+  return String(dates[0].getFullYear());
+}
+
+function renderStats() {
+  document.getElementById('rangeLabel').textContent = rangeLabelText();
+  const dates = getRangeDates();
+  const today = new Date();
+  const validDates = dates.filter(d => d <= today);
+  const keys = validDates.map(d => d.toISOString().slice(0,10));
+
+  let totalMin = 0;
+  const blocks = document.getElementById('statBlocks');
+  blocks.innerHTML = '';
+
+  Object.entries(CATS).forEach(([cat, meta]) => {
+    const es = mockEntries.filter(e => e.cat === cat && keys.includes(e.date));
+    const minutes = es.reduce((a,e) => a + e.duration, 0);
+    totalMin += minutes;
+    const days = new Set(es.map(e=>e.date)).size;
+    const pct = keys.length ? Math.round((days / keys.length) * 100) : 0;
+
+    const block = document.createElement('div');
+    block.className = 'stat-block';
+    const h = Math.floor(minutes/60), m = minutes%60;
+    block.innerHTML = `
+      <div class="stat-top">
+        <span class="cat" style="color:${meta.color}">${meta.label}</span>
+        <span class="nums">${h}h ${m}m · ${pct}%</span>
+      </div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${meta.color}"></div></div>
+    `;
+    blocks.appendChild(block);
+  });
+
+  const th = Math.floor(totalMin/60), tm = totalMin%60;
+  document.getElementById('totalTime').textContent = `${th}h ${tm}m`;
+}
+
+// ---- init ----
+renderHoy();
+</script>
+</body>
+</html>
