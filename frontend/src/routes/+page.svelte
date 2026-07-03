@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import type { Component } from "svelte";
+
   import {
     entries,
     entriesLoading,
@@ -8,14 +10,15 @@
     insertEntry,
     fetchNotes,
   } from "$lib/stores/entries.js";
-  import { signOut, session } from "$lib/stores/auth.js";
+  import { signOut } from "$lib/stores/auth.js";
+  import { modules, fetchModules } from "$lib/stores/modules.js";
   import {
     toDayKey,
-    isFutureDay,
     getWeekRange,
     getMonthRange,
     getYearMonthBuckets,
     bucketEntriesByDay,
+    isFutureDay,
   } from "$lib/utils/dates.js";
   import EntryList from "$lib/components/EntryList.svelte";
   import VuMeter from "$lib/components/VuMeter.svelte";
@@ -26,20 +29,33 @@
   import WeekComparison from "$lib/components/WeekComparison.svelte";
   import HourlyDistribution from "$lib/components/HourlyDistribution.svelte";
 
+  import ModuleIcon from "$lib/components/ModuleIcon.svelte";
+
+  import ExerciseDetailsForm from "$lib/components/ExerciseDetailsForm.svelte";
+  import MusicDetailsForm from "$lib/components/MusicDetailsForm.svelte";
+  import ContentDetailsForm from "$lib/components/ContentDetailsForm.svelte";
+
+  const moduleDetailForms: Record<string, Component<any>> = {
+    exercise: ExerciseDetailsForm,
+    music: MusicDetailsForm,
+    content: ContentDetailsForm,
+  };
+
   let activeTab = $state("hoy");
-
-  type Cat = "exercise" | "music" | "content";
-
-  let sheetOpen = $state(false);
-  let sheetCat = $state<Cat | null>(null);
-  let logError = $state("");
-  let logLoading = $state(false);
 
   const TABS = [
     { id: "hoy", label: "Hoy", icon: "clock" },
     { id: "historial", label: "Historial", icon: "calendar" },
     { id: "stats", label: "Stats", icon: "chart" },
   ] as const;
+  let sheetOpen = $state(false);
+  let sheetCat = $state<string | null>(null);
+  let sheetMetadata = $state<Record<string, unknown>>({});
+  let showDetails = $state(false);
+  let logError = $state("");
+  let logLoading = $state(false);
+
+  const activeModule = $derived($modules.find((m) => m.id === sheetCat));
 
   const streak = $derived.by(() => {
     const byDay = bucketEntriesByDay($entries);
@@ -72,18 +88,22 @@
     const to = new Date();
     const from = new Date();
     from.setDate(from.getDate() - 366);
-    await Promise.all([fetchRange(from, to), fetchNotes()]);
+    await Promise.all([fetchModules(), fetchRange(from, to), fetchNotes()]);
   });
 
-  function openSheet(cat: Cat) {
+  function openSheet(cat: string) {
     sheetCat = cat;
     sheetOpen = true;
+    sheetMetadata = {};
+    showDetails = false;
     logError = "";
   }
 
   function closeSheet() {
     sheetOpen = false;
     sheetCat = null;
+    sheetMetadata = {};
+    showDetails = false;
     logError = "";
   }
 
@@ -92,7 +112,7 @@
     logLoading = true;
     logError = "";
     try {
-      await insertEntry(sheetCat, duration_minutes);
+      await insertEntry(sheetCat, duration_minutes, { ...sheetMetadata });
       closeSheet();
     } catch (err) {
       logError = err instanceof Error ? err.message : "Error al guardar";
@@ -100,12 +120,6 @@
       logLoading = false;
     }
   }
-
-  const CATS: Record<Cat, { label: string; color: string }> = {
-    exercise: { label: "Ejercicio", color: "#3FE1D0" },
-    music: { label: "Música", color: "#FF3EA5" },
-    content: { label: "Contenido", color: "#F5A623" },
-  };
 </script>
 
 <div class="bg-bg dt:min-h-screen dt:flex">
@@ -206,8 +220,7 @@
   <div
     class="max-w-[420px] mx-auto dt:max-w-none dt:flex-1 dt:min-w-0
            h-screen dt:h-auto dt:min-h-screen
-           flex flex-col
-           bg-bg border-x border-border dt:border-x-0
+           flex flex-col bg-bg border-x border-border dt:border-x-0
            relative"
   >
     <div
@@ -254,14 +267,14 @@
 
     {#if $entriesError}
       <div
-        class="bg-music/10 border-b border-music/30 px-4 py-2
-               text-music text-xs text-center flex-shrink-0"
+        class="bg-music/10 border-b border-music/30 px-4 py-2 text-music text-xs text-center flex-shrink-0"
       >
         Error al cargar datos: {$entriesError}
       </div>
     {/if}
 
     <div class="flex-1 overflow-hidden dt:overflow-visible relative">
+      <!-- HOY -->
       {#if activeTab === "hoy"}
         <div
           class="h-full overflow-y-auto px-4 pt-4 pb-24 animate-screen-in
@@ -276,7 +289,7 @@
             >
               REGISTRAR AHORA
             </span>
-            {#if $entriesLoading}
+            {#if $entriesLoading || $modules.length === 0}
               <div
                 class="flex items-center justify-center py-6 text-muted text-xs font-mono"
               >
@@ -284,13 +297,13 @@
               </div>
             {:else}
               <div class="flex flex-col gap-2.5">
-                {#each Object.entries(CATS) as [cat, { label, color }]}
+                {#each $modules as mod}
                   {@const todayEntry = todayEntries.find(
-                    (e) => e.category === cat,
+                    (e) => e.category === mod.id,
                   )}
                   <button
-                    id="cat-btn-{cat}"
-                    onclick={() => openSheet(cat as Cat)}
+                    id="cat-btn-{mod.id}"
+                    onclick={() => openSheet(mod.id)}
                     class="
                       flex items-center gap-3 border rounded p-4 cursor-pointer text-left
                       transition-all duration-150
@@ -299,22 +312,24 @@
                       : 'border-border bg-panel hover:border-muted/40'}
                     "
                     style={todayEntry
-                      ? `border-color:${color}; background:color-mix(in srgb, ${color} 8%, #111418)`
+                      ? `border-color:${mod.color}; background:color-mix(in srgb, ${mod.color} 8%, #111418)`
                       : ""}
                   >
-                    <span
-                      class="w-2.5 h-2.5 rounded-full flex-shrink-0 transition-all"
-                      style={todayEntry
-                        ? `background:${color}; box-shadow: 0 0 8px ${color}`
-                        : "background:#2A2E33"}
-                    ></span>
+                    <div
+                      class="shrink-0 transition-all"
+                      style="color:{todayEntry ? mod.color : '#5A5F66'};
+                             {todayEntry
+                        ? `filter:drop-shadow(0 0 4px ${mod.color})`
+                        : ''}"
+                    >
+                      <ModuleIcon iconKey={mod.icon_key} size={18} />
+                    </div>
                     <span class="flex-1">
                       <span
                         class="block text-sm font-semibold"
-                        style={todayEntry ? `color:${color}` : "color:#8A8F96"}
+                        style="color:{todayEntry ? mod.color : '#8A8F96'}"
+                        >{mod.label}</span
                       >
-                        {label}
-                      </span>
                       <span
                         class="block text-[11px] font-mono text-muted mt-0.5"
                       >
@@ -331,14 +346,13 @@
           </div>
 
           <div class="border border-border rounded bg-panel p-4 mb-3 dt:mb-0">
-            <div class="flex justify-between items-center mb-3">
-              <span class="font-mono text-[9.5px] tracking-[0.12em] text-muted">
-                CANAL · ESTA SEMANA
-              </span>
-            </div>
+            <span
+              class="font-mono text-[9.5px] tracking-[0.12em] text-muted block mb-3"
+            >
+              CANAL · ESTA SEMANA
+            </span>
             <VuMeter entries={$entries} />
           </div>
-
           <div class="mb-3 dt:mb-0">
             <WeekComparison entries={$entries} />
           </div>
@@ -358,9 +372,8 @@
           <div class="border border-border rounded bg-panel p-4 mb-3 dt:mb-0">
             <span
               class="font-mono text-[9.5px] tracking-[0.12em] text-muted block mb-3"
+              >ÚLTIMAS 12 SEMANAS</span
             >
-              ÚLTIMAS 12 SEMANAS
-            </span>
             {#if $entriesLoading}
               <div
                 class="text-muted text-xs font-mono animate-pulse py-4 text-center"
@@ -375,9 +388,8 @@
           <div class="border border-border rounded bg-panel p-4 mb-3 dt:mb-0">
             <span
               class="font-mono text-[9.5px] tracking-[0.12em] text-muted block mb-3"
+              >HOY</span
             >
-              HOY
-            </span>
             {#if $entriesLoading}
               <div
                 class="text-muted text-xs font-mono animate-pulse text-center py-4"
@@ -403,8 +415,7 @@
         </div>
       {:else if activeTab === "stats"}
         <div
-          class="h-full overflow-y-auto px-4 pt-4 pb-24 animate-screen-in
-                 dt:h-auto dt:overflow-visible dt:px-6 dt:pt-6 dt:pb-10"
+          class="h-full overflow-y-auto px-4 pt-4 pb-24 animate-screen-in dt:h-auto dt:overflow-visible dt:px-6 dt:pt-6 dt:pb-10"
         >
           {#if $entriesLoading}
             <div
@@ -418,7 +429,6 @@
         </div>
       {/if}
     </div>
-
     <div
       class="dt:hidden flex border-t border-border bg-panel/80 backdrop-blur-sm flex-shrink-0"
     >
@@ -441,9 +451,8 @@
               stroke="currentColor"
               stroke-width="1.8"
               class="w-5 h-5"
+              ><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg
             >
-              <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" />
-            </svg>
           {:else if tab.icon === "calendar"}
             <svg
               viewBox="0 0 24 24"
@@ -451,21 +460,18 @@
               stroke="currentColor"
               stroke-width="1.8"
               class="w-5 h-5"
-            >
-              <rect x="3" y="4" width="18" height="17" rx="2" /><path
+              ><rect x="3" y="4" width="18" height="17" rx="2" /><path
                 d="M3 9h18M8 2v4M16 2v4"
-              />
-            </svg>
+              /></svg
+            >
           {:else}
             <svg
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               stroke-width="1.8"
-              class="w-5 h-5"
+              class="w-5 h-5"><path d="M4 20V10M12 20V4M20 20v-7" /></svg
             >
-              <path d="M4 20V10M12 20V4M20 20v-7" />
-            </svg>
           {/if}
           {tab.label}
         </button>
@@ -474,6 +480,7 @@
   </div>
 
   {#if sheetOpen}
+    {@const accentColor = activeModule?.color ?? "#8A8F96"}
     <div
       role="dialog"
       aria-modal="true"
@@ -487,18 +494,24 @@
       }}
     >
       <div
-        class="w-full dt:max-w-[420px] dt:mx-auto
+        class="w-full dt:max-w-[460px] dt:mx-auto
                bg-[rgba(24,27,32,0.6)] backdrop-blur-xl
                border-t border-white/8 rounded-t-[18px]
                px-[18px] pt-5 pb-7"
       >
-        <p class="text-[13px] font-mono text-muted2 mb-3.5">
-          Duración — <strong class="text-text">
-            {sheetCat ? CATS[sheetCat].label : ""}
-          </strong>
-        </p>
+        <div class="flex items-center gap-2.5 mb-4">
+          {#if activeModule}
+            <span style="color:{accentColor}">
+              <ModuleIcon iconKey={activeModule.icon_key} size={16} />
+            </span>
+          {/if}
+          <p class="text-[13px] font-mono text-muted2">
+            Duración —
+            <strong class="text-text">{activeModule?.label ?? ""}</strong>
+          </p>
+        </div>
 
-        <div class="grid grid-cols-3 gap-2 mb-2">
+        <div class="grid grid-cols-3 gap-2 mb-4">
           {#each [15, 30, 45, 60, 90, 120] as mins}
             <button
               id="dur-{mins}"
@@ -516,14 +529,31 @@
           {/each}
         </div>
 
+        {#if sheetCat && moduleDetailForms[sheetCat]}
+          <button
+            type="button"
+            onclick={() => (showDetails = !showDetails)}
+            class="text-[10.5px] font-mono transition-colors mb-1 block"
+            style="color:{showDetails ? accentColor : '#5A5F66'}"
+          >
+            {showDetails ? "— ocultar detalles" : "+ agregar detalles"}
+          </button>
+          {#if showDetails}
+            {@const DetailForm = moduleDetailForms[sheetCat]}
+            {#if DetailForm}
+              <DetailForm color={accentColor} bind:metadata={sheetMetadata} />
+            {/if}
+          {/if}
+        {/if}
+
         {#if logError}
-          <p class="text-music text-xs font-mono text-center mt-2">
+          <p class="text-music text-xs font-mono text-center mt-3">
             {logError}
           </p>
         {/if}
         {#if logLoading}
           <p
-            class="text-muted text-xs font-mono text-center mt-2 animate-pulse"
+            class="text-muted text-xs font-mono text-center mt-3 animate-pulse"
           >
             Guardando…
           </p>

@@ -8,7 +8,7 @@ const _notes = writable(/** @type {Note[]}  */([]));
 const _loading = writable(false);
 const _error = writable(/** @type {string | null} */(null));
 
-/** @typedef {{ id: string, category: 'exercise'|'music'|'content', duration_minutes: number, occurred_at: string, created_at?: string }} Entry */
+/** @typedef {{ id: string, category: string, duration_minutes: number, occurred_at: string, created_at?: string, metadata?: Record<string, unknown> }} Entry */
 
 export const entries = { subscribe: _entries.subscribe };
 export const notes = { subscribe: _notes.subscribe };
@@ -63,9 +63,12 @@ export async function fetchRange(from, to) {
  * @returns {Promise<Entry>}
  * @throws {Error} si el insert falla
  */
-export async function insertEntry(category, duration_minutes) {
-  // Obtenemos el user_id del usuario autenticado (requerido por la constraint NOT NULL).
-  // Esto NO es duplicar la lógica de RLS — es satisfacer la integridad del esquema.
+/**
+ * @param {string} category
+ * @param {number} duration_minutes
+ * @param {Record<string, unknown>} [metadata={}] — campos específicos del módulo (opcional)
+ */
+export async function insertEntry(category, duration_minutes, metadata = {}) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('No hay sesión activa');
 
@@ -73,7 +76,7 @@ export async function insertEntry(category, duration_minutes) {
 
   const { data, error } = await supabase
     .from('entries')
-    .insert({ category, duration_minutes, occurred_at, user_id: user.id })
+    .insert({ category, duration_minutes, occurred_at, user_id: user.id, metadata })
     .select('id, category, duration_minutes, occurred_at, created_at')
     .single();
 
