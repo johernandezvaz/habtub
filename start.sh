@@ -1,5 +1,4 @@
-
-
+#!/bin/bash
 set -e
 
 FRONTEND_PORT="${PORT:-3000}"
