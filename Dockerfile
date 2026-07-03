@@ -17,7 +17,12 @@ RUN pnpm install --frozen-lockfile
 
 COPY frontend/ ./frontend/
 
-RUN pnpm --filter frontend build
+ARG PUBLIC_SUPABASE_URL
+ARG PUBLIC_SUPABASE_ANON_KEY
+
+RUN PUBLIC_SUPABASE_URL=$PUBLIC_SUPABASE_URL \
+    PUBLIC_SUPABASE_ANON_KEY=$PUBLIC_SUPABASE_ANON_KEY \
+    pnpm --filter frontend build
 
 FROM node:22-alpine
 
