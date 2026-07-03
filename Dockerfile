@@ -27,7 +27,7 @@ RUN PUBLIC_SUPABASE_URL=$PUBLIC_SUPABASE_URL \
     pnpm --filter frontend build
 
 # Genera un directorio de deploy auto-contenido (sin symlinks al virtual store)
-RUN pnpm --filter frontend deploy --prod /deploy/frontend
+RUN pnpm --filter frontend deploy --prod --legacy /deploy/frontend
 # Copia el output de Vite al directorio de deploy
 RUN cp -r /build/frontend/build /deploy/frontend/build
 
