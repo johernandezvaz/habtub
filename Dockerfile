@@ -59,7 +59,7 @@ COPY --from=python-builder --chown=appuser:appgroup /build/backend /app/backend
 COPY --from=frontend-builder --chown=appuser:appgroup /deploy/frontend /app/frontend
 
 COPY --chown=appuser:appgroup start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+RUN sed -i 's/\r$//' /app/start.sh && chmod +x /app/start.sh
 
 USER appuser
 

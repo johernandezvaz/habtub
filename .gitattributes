@@ -1,0 +1,6 @@
+# Forzar LF para scripts de shell (evita CRLF en Windows)
+*.sh text eol=lf
+
+# Forzar LF para Dockerfile
+Dockerfile text eol=lf
+Dockerfile-* text eol=lf
